@@ -211,6 +211,7 @@ module.exports = {
     besticon: 'https://besticon-demo.herokuapp.com/icon?url=$URL&size=80..120..200',
     webmasterapi: 'https://api.webmasterapi.com/v1/favicon/yEwx0ZFs0CSPshHq/$URL',
     mcapi: 'https://eu.mc-api.net/v3/server/favicon/$URL',
+    unavatar: 'https://unavatar.io/$URL?fallback=false',
   },
   /* The URL to CDNs used for external icons. These are only loaded when required */
   iconCdns: {

@@ -88,7 +88,8 @@ export default {
     /* Return the path to icon asset, depending on icon type */
     getIconPath(img, url) {
       // Define the fallback chain
-      const FALLBACK_PROVIDERS = ['google', 'iowen', 'duckduckgo'];
+      // Use unavatar first as it supports 404s (avoiding white globes)
+      const FALLBACK_PROVIDERS = ['unavatar', 'google', 'duckduckgo'];
 
       // Final Fallback: Generative Icon
       // If we have exhausted all providers, OR if the image type dictated 'generative' explicitly
@@ -97,19 +98,20 @@ export default {
       }
 
       // Intermediate Fallbacks: Cycle through providers
-            if (this.fallbackStage > 0) {
+      // Intermediate Fallbacks: Cycle through providers
+      if (this.fallbackStage > 0) {
         const providerIndex = this.fallbackStage - 1;
         if (providerIndex < FALLBACK_PROVIDERS.length) {
           const provider = FALLBACK_PROVIDERS[providerIndex];
           // Skip if this provider was already the user's default choice (avoid duplicates)
           const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
           if (provider === userDefault) {
-             // We can't safely increment and recurse here inside the render function without risk
-             // So we just rely on the next error trigger to move us along, 
-             // OR we pick the next one immediately if possible.
-             // For simplicity/safety, let's just return the current one. 
-             // The previous logic had a risk of infinite recursion or side-effects in computed prop.
-             // But actually, getFavicon is cheap. Let's try to just use it.
+            // We can't safely increment and recurse here inside the render function without risk
+            // So we just rely on the next error trigger to move us along,
+            // OR we pick the next one immediately if possible.
+            // For simplicity/safety, let's just return the current one.
+            // The previous logic had a risk of infinite recursion or side-effects in computed prop.
+            // But actually, getFavicon is cheap. Let's try to just use it.
           }
           return this.getFavicon(url, provider);
         }
@@ -296,13 +298,6 @@ export default {
         this.broken = false; // Reset broken to trigger re-render with new path
         
         // Optimization: If we hit a provider that duplicates default, skip it immediately
-        const FALLBACK_PROVIDERS = ['google', 'iowen', 'duckduckgo'];
-        if (this.fallbackStage > 0 && this.fallbackStage <= FALLBACK_PROVIDERS.length) {
-            const provider = FALLBACK_PROVIDERS[this.fallbackStage - 1];
-            const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
-            if (provider === userDefault) {
-                this.fallbackStage += 1;
-            }
         }
       } else {
         this.broken = true; // Show BrokenImage component if all fail
