@@ -87,16 +87,30 @@ export default {
     },
     /* Return the path to icon asset, depending on icon type */
     getIconPath(img, url) {
-      // Universal fallback: If we reached stage 2, EVERYTHING falls back to local SVG
-      if (this.fallbackStage === 2) {
+      // Define the fallback chain
+      const FALLBACK_PROVIDERS = ['google', 'iowen', 'duckduckgo'];
+
+      // Final Fallback: Generative Icon
+      if (this.fallbackStage > FALLBACK_PROVIDERS.length) {
         return this.getGenerativeIcon(url || this.label);
       }
 
-      // Stage 1 fallback: Specifically for favicon types, try Google
-      if (this.fallbackStage === 1 && this.determineImageType(img) === 'favicon') {
-        return this.getFavicon(url, 'google');
+      // Intermediate Fallbacks: Cycle through providers
+      if (this.fallbackStage > 0) {
+        const providerIndex = this.fallbackStage - 1;
+        if (providerIndex < FALLBACK_PROVIDERS.length) {
+          const provider = FALLBACK_PROVIDERS[providerIndex];
+          // Skip if this provider was already the user's default choice (avoid duplicates)
+          const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
+          if (provider === userDefault) {
+            this.fallbackStage += 1; // Skip this one
+            return this.getIconPath(img, url); // Recursively try next
+          }
+          return this.getFavicon(url, provider);
+        }
       }
 
+      // Initial Stage: Configured Icon or Default API
       switch (this.determineImageType(img)) {
         case 'url': return img;
         case 'img': return this.getLocalImagePath(img);
@@ -229,9 +243,11 @@ export default {
     /* Generate a consistent color from a string */
     stringToColor(str) {
       let hash = 0;
-      for (let i = 0; i < str.length; i++) {
+      for (let i = 0; i < str.length; i += 1) {
+        // eslint-disable-next-line no-bitwise
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
       }
+      // eslint-disable-next-line no-bitwise
       const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
       return `#${'00000'.substring(0, 6 - c.length)}${c}`;
     },
@@ -266,11 +282,12 @@ export default {
     /* Called when the path to the image cannot be resolved */
     imageNotFound(errorMsg) {
       // Logic for multi-stage fallback
-      // Stage 0: Initial (Likely iowen)
-      // Stage 1: Secondary (Google)
-      // Stage 2: Final (Local SVG)
+      // Stage 0: Initial (User Config/Default)
+      // Stage 1-3: Fallbacks (Google, Iowen, DuckDuckGo)
+      // Stage 4: Final (Generative)
+      const MAX_STAGES = 4; // Config + 3 Providers
 
-      if (this.fallbackStage < 2) {
+      if (this.fallbackStage < MAX_STAGES) {
         this.fallbackStage += 1;
         this.broken = false; // Reset broken to trigger re-render with new path
       } else {

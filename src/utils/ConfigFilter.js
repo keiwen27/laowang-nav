@@ -14,9 +14,9 @@ function isSameItem(item1, item2) {
 
   // 比较关键字段
   return item1.title === item2.title
-        && item1.url === item2.url
-        && item1.icon === item2.icon
-        && item1.description === item2.description;
+    && item1.url === item2.url
+    && item1.icon === item2.icon
+    && item1.description === item2.description;
 }
 
 /**
@@ -34,20 +34,20 @@ export function filterSyncedData(config, syncedSections) {
   const filteredConfig = { ...config };
   const filteredSections = [];
 
-  for (const section of config.sections || []) {
-    const syncedSection = syncedSections.find(s => s.name === section.name);
+  config.sections.forEach((section) => {
+    const syncedSection = syncedSections.find((s) => s.name === section.name);
 
     if (!syncedSection) {
       // 完全自定义的分类，保留
       filteredSections.push(section);
-      continue;
+      return;
     }
 
     // 分类存在于同步数据中，需要过滤条目
     const filteredItems = [];
 
-    for (const item of section.items || []) {
-      const syncedItem = (syncedSection.items || []).find(si => si.title === item.title);
+    (section.items || []).forEach((item) => {
+      const syncedItem = (syncedSection.items || []).find((si) => si.title === item.title);
 
       if (!syncedItem) {
         // 自定义的条目，保留
@@ -57,7 +57,7 @@ export function filterSyncedData(config, syncedSections) {
         filteredItems.push(item);
       }
       // 如果与同步数据完全相同，则不保留（被过滤掉）
-    }
+    });
 
     // 如果分类有保留的条目，或者分类的其他属性被修改了，保留这个分类
     if (filteredItems.length > 0) {
@@ -68,7 +68,7 @@ export function filterSyncedData(config, syncedSections) {
     } else {
       // 检查分类的其他属性（如icon）是否被修改
       const sectionModified = section.icon !== syncedSection.icon
-                || section.displayData !== syncedSection.displayData;
+        || section.displayData !== syncedSection.displayData;
 
       if (sectionModified) {
         // 分类属性被修改，保留分类结构但items为空
@@ -79,7 +79,7 @@ export function filterSyncedData(config, syncedSections) {
       }
       // 否则整个分类都不保留
     }
-  }
+  });
 
   filteredConfig.sections = filteredSections;
   return filteredConfig;
@@ -90,13 +90,6 @@ export function filterSyncedData(config, syncedSections) {
  * @returns {Promise<Array>} - 同步的分类数据
  */
 export async function getSyncedSections() {
-  try {
-    // Disabled remote sync based on user request (Deployment Sync Only)
-    // const baseUrl = process.env.VUE_APP_DOMAIN || window.location.origin;
-    // const response = await fetch(${baseUrl}/data/synced_sections.json);
-    return [];
-  } catch (error) {
-    console.warn('Error loading synced sections:', error);
-    return [];
-  }
+  // Disabled remote sync based on user request (Deployment Sync Only)
+  return [];
 }

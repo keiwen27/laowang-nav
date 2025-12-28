@@ -356,7 +356,8 @@ const store = new Vuex.Store({
       const configFilePath = process.env.VUE_APP_CONFIG_PATH || '/conf.yml';
       try {
         // Attempt to fetch the YAML file
-        const response = await axios.get(configFilePath, makeBasicAuthHeaders());
+        const validPath = configFilePath.includes('?') ? configFilePath : `${configFilePath}?t=${new Date().getTime()}`;
+        const response = await axios.get(validPath, makeBasicAuthHeaders());
         let data;
         try {
           data = yaml.load(response.data);

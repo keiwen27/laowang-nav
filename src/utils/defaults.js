@@ -223,9 +223,9 @@ module.exports = {
     localPath: './item-icons',
     faviconName: 'favicon.ico',
     homeLabIcons:
-            'https://raw.githubusercontent.com/walkxcode/dashboard-icons/master/png/{icon}.png',
+      'https://raw.githubusercontent.com/walkxcode/dashboard-icons/master/png/{icon}.png',
     homeLabIconsFallback:
-            'https://raw.githubusercontent.com/NX211/homer-icons/master/png/{icon}.png',
+      'https://raw.githubusercontent.com/NX211/homer-icons/master/png/{icon}.png',
   },
   /* API endpoints for widgets that need to fetch external data */
   widgetApiEndpoints: {
@@ -349,10 +349,9 @@ module.exports = {
       runtimeCaching: [
         {
           urlPattern: /conf\.yml$/,
-          handler: 'NetworkFirst',
+          handler: 'NetworkOnly',
           options: {
             cacheName: 'config-cache',
-            networkTimeoutSeconds: 3,
           },
         },
       ],

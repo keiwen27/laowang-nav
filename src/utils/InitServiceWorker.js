@@ -1,5 +1,3 @@
-import axios from 'axios';
-import yaml from 'js-yaml';
 import { register } from 'register-service-worker';
 import { sessionStorageKeys } from '@/utils/defaults';
 import { statusMsg, statusErrorMsg } from '@/utils/CoolConsole';
@@ -33,15 +31,13 @@ const setSwStatus = (swStateToSet) => {
  * Or disable if user specified to disable
  */
 const shouldEnableServiceWorker = async () => {
-  const conf = yaml.load((await axios.get('/conf.yml')).data);
-  if (conf && conf.appConfig && conf.appConfig.enableServiceWorker) {
+  // Always enable SW in production for better availability/offline support
+  // This helps if the site is blocked intermittently - users can still load the cached app.
+  if (process.env.NODE_ENV === 'production') {
     setSwStatus({ disabledByUser: false });
     return true;
-  } else if (process.env.NODE_ENV !== 'production') {
-    setSwStatus({ devMode: true });
-    return false;
   }
-  setSwStatus({ disabledByUser: true });
+  setSwStatus({ devMode: true });
   return false;
 };
 
