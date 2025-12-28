@@ -45,9 +45,9 @@ export default {
     appConfig() {
       return this.$store.getters.appConfig;
     },
-    /* Effective icon: use 'generative' as default when icon is empty */
+    /* Effective icon: use 'favicon' as default when icon is empty to trigger auto-discovery */
     effectiveIcon() {
-      return this.icon || 'generative';
+      return this.icon || 'favicon';
     },
     /* Determines the type of icon */
     iconType() {
@@ -63,7 +63,7 @@ export default {
     return {
       broken: false, // If true, was unable to resolve icon
       attemptedFallback: false,
-      fallbackStage: 0, // 0: Initial, 1: Secondary, 2: Final
+      fallbackStage: 0, // 0: Initial, 1-3: Providers, 4: Generative
     };
   },
   methods: {
@@ -91,20 +91,25 @@ export default {
       const FALLBACK_PROVIDERS = ['google', 'iowen', 'duckduckgo'];
 
       // Final Fallback: Generative Icon
+      // If we have exhausted all providers, OR if the image type dictated 'generative' explicitly
       if (this.fallbackStage > FALLBACK_PROVIDERS.length) {
         return this.getGenerativeIcon(url || this.label);
       }
 
       // Intermediate Fallbacks: Cycle through providers
-      if (this.fallbackStage > 0) {
+            if (this.fallbackStage > 0) {
         const providerIndex = this.fallbackStage - 1;
         if (providerIndex < FALLBACK_PROVIDERS.length) {
           const provider = FALLBACK_PROVIDERS[providerIndex];
           // Skip if this provider was already the user's default choice (avoid duplicates)
           const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
           if (provider === userDefault) {
-            this.fallbackStage += 1; // Skip this one
-            return this.getIconPath(img, url); // Recursively try next
+             // We can't safely increment and recurse here inside the render function without risk
+             // So we just rely on the next error trigger to move us along, 
+             // OR we pick the next one immediately if possible.
+             // For simplicity/safety, let's just return the current one. 
+             // The previous logic had a risk of infinite recursion or side-effects in computed prop.
+             // But actually, getFavicon is cheap. Let's try to just use it.
           }
           return this.getFavicon(url, provider);
         }
@@ -270,7 +275,6 @@ export default {
       const imageName = img.replace('hl-', '').toLocaleLowerCase();
       return (cdn || iconCdns.homeLabIcons).replace('{icon}', imageName);
     },
-    /* For a given URL, return the hostname only. Used for favicon and generative icons */
     getHostName(url) {
       try {
         return new URL(url).hostname;
@@ -285,11 +289,21 @@ export default {
       // Stage 0: Initial (User Config/Default)
       // Stage 1-3: Fallbacks (Google, Iowen, DuckDuckGo)
       // Stage 4: Final (Generative)
-      const MAX_STAGES = 4; // Config + 3 Providers
+      const MAX_STAGES = 5; // Increased safety margin
 
       if (this.fallbackStage < MAX_STAGES) {
         this.fallbackStage += 1;
         this.broken = false; // Reset broken to trigger re-render with new path
+        
+        // Optimization: If we hit a provider that duplicates default, skip it immediately
+        const FALLBACK_PROVIDERS = ['google', 'iowen', 'duckduckgo'];
+        if (this.fallbackStage > 0 && this.fallbackStage <= FALLBACK_PROVIDERS.length) {
+            const provider = FALLBACK_PROVIDERS[this.fallbackStage - 1];
+            const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
+            if (provider === userDefault) {
+                this.fallbackStage += 1;
+            }
+        }
       } else {
         this.broken = true; // Show BrokenImage component if all fail
         let outputMessage = '';
