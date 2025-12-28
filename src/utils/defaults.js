@@ -200,18 +200,33 @@ module.exports = {
 
   /* Available services for fetching favicon icon for user apps */
   faviconApiEndpoints: {
+    // 国内优先服务 (Domestic-friendly services)
     iowen: 'https://api.iowen.cn/favicon/$URL.png',
-    allesedv: 'https://f1.allesedv.com/128/$URL',
-    clearbit: 'https://logo.clearbit.com/$URL',
-    iconhorse: 'https://icon.horse/icon/$URL',
-    faviconkit: 'https://api.faviconkit.com/$URL/64',
-    duckduckgo: 'https://icons.duckduckgo.com/ip2/$URL.ico',
-    yandex: 'https://favicon.yandex.net/favicon/$URL',
+    wuruihong: 'https://icon.wuruihong.com/$URL',
+    iqtech: 'https://api.iqtech.top/icon?url=$URL',
+
+    // 国际服务 (International services)
     google: 'https://www.google.com/s2/favicons?sz=128&domain_url=$URL',
+    unavatar: 'https://unavatar.io/$URL?fallback=false',
+    duckduckgo: 'https://icons.duckduckgo.com/ip2/$URL.ico',
+    iconhorse: 'https://icon.horse/icon/$URL',
+
+    // Logo 服务 (Logo services)
+    clearbit: 'https://logo.clearbit.com/$URL',
     besticon: 'https://besticon-demo.herokuapp.com/icon?url=$URL&size=80..120..200',
+
+    // 其他服务 (Other services)
+    allesedv: 'https://f1.allesedv.com/128/$URL',
+    faviconkit: 'https://api.faviconkit.com/$URL/64',
+    yandex: 'https://favicon.yandex.net/favicon/$URL',
     webmasterapi: 'https://api.webmasterapi.com/v1/favicon/yEwx0ZFs0CSPshHq/$URL',
     mcapi: 'https://eu.mc-api.net/v3/server/favicon/$URL',
-    unavatar: 'https://unavatar.io/$URL?fallback=false',
+  },
+  /* Favicon fallback chain - 图标获取失败时的备选方案优先级 */
+  faviconFallbackChain: {
+    domestic: ['wuruihong', 'iqtech'], // 国内可访问服务 (移除了iowen因为超时太慢)
+    international: ['google', 'unavatar', 'duckduckgo', 'iconhorse'], // 国际服务
+    logo: ['clearbit', 'besticon'], // Logo API 备用
   },
   /* The URL to CDNs used for external icons. These are only loaded when required */
   iconCdns: {

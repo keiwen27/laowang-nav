@@ -18,14 +18,25 @@
     <!-- For each data attribute, render the correct type of input field -->
     <div class="row" v-for="(row, index) in formData" :key="row.name">
       <!-- Text box, for text/ number/ raw input elements -->
-      <Input
-        v-if="row.type === 'text' || row.type === 'number'"
-        v-model="formData[index].value"
-        :description="row.description"
-        :label="row.title || row.name"
-        :type="row.type"
-        layout="horizontal"
-        />
+      <template v-if="row.type === 'text' || row.type === 'number'">
+        <div :class="row.name === 'description' ? 'input-with-btn' : ''">
+          <Input
+            v-model="formData[index].value"
+            :description="row.description"
+            :label="row.title || row.name"
+            :type="row.type"
+            layout="horizontal"
+          />
+          <button
+            v-if="row.name === 'description'"
+            @click="autoFillDescription"
+            class="auto-fill-btn"
+            title="自动填充描述"
+          >
+            🤖
+          </button>
+        </div>
+      </template>
       <!-- Radio button, used for True or False input -->
       <Radio
         v-else-if="row.type === 'boolean'"
@@ -82,6 +93,7 @@ import Select from '@/components/FormElements/Select';
 import StoreKeys from '@/utils/StoreMutations';
 import DashySchema from '@/utils/ConfigSchema';
 import { modalNames } from '@/utils/defaults';
+import { DescriptionGenerator } from '@/utils/descriptionGenerator';
 
 export default {
   name: 'EditItem',
@@ -252,6 +264,38 @@ export default {
       // if (newItem.hotkey) newItem.hotkey = parseInt(newItem.hotkey, 10);
       return newItem;
     },
+    /* Auto-fill description from URL */
+    autoFillDescription() {
+      const urlField = this.formData.find(f => f.name === 'url');
+      const titleField = this.formData.find(f => f.name === 'title');
+      const descField = this.formData.find(f => f.name === 'description');
+
+      if (!urlField || !urlField.value) {
+        this.$toasted.show('请先输入网址', { className: 'toast-warning' });
+        return;
+      }
+
+      try {
+        const result = DescriptionGenerator.generateDescription(
+          urlField.value,
+          titleField?.value || '',
+        );
+
+        if (descField) {
+          descField.value = result.description;
+        }
+
+        const sourceText = {
+          database: '数据库匹配',
+          keyword: '关键词推断',
+          fallback: '使用默认值',
+        }[result.source] || '自动生成';
+
+        this.$toasted.show(`✅ 已自动填充（${sourceText}）`, { className: 'toast-success' });
+      } catch (error) {
+        this.$toasted.show('自动填充失败', { className: 'toast-error' });
+      }
+    },
     /* Clean up work, triggered when modal closed */
     modalClosed() {
       this.$store.commit(StoreKeys.SET_MODAL_OPEN, false);
@@ -287,16 +331,86 @@ export default {
   }
   .row {
     display: flex;
-    padding: 0.5rem 0.25rem;
+    align-items: center;
+    padding: 0.5rem 0;
     &:not(:last-child) {
       border-bottom: 1px dotted var(--interactive-editor-color);
     }
-    .input-container, .select-container {
-        width: 100%;
+
+    // 让输入容器占据剩余空间，但不挤压其他元素
+    .input-container, .select-container, .radio-container {
+      flex: 1;
+      min-width: 0;
+      margin-right: 1rem; // 给删除按钮留空间
+
+      // 确保horizontal布局下的input-container使用一致的label宽度
+      &.horizontal {
+        label.input-label {
+          min-width: 100px;
+          flex-basis: 100px;
+          flex-grow: 0;
+          flex-shrink: 0;
+        }
+
         input.input-field {
-          font-size: 1rem;
-          padding: 0.35rem 0.5rem;
+          flex-grow: 1;
+          flex-basis: 0;
+        }
+
+        p.input-description {
+          flex-grow: 0;
+          flex-basis: auto;
+          white-space: nowrap;
+        }
       }
+
+      input.input-field {
+        font-size: 1rem;
+        padding: 0.35rem 0.5rem;
+      }
+    }
+
+    // Select组件特殊处理，确保label宽度一致
+    .select-container {
+      label.select-label {
+        min-width: 100px;
+        flex-basis: 100px;
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+
+      .form-dropdown {
+        flex-grow: 1;
+        flex-basis: 0;
+      }
+
+      p.select-description {
+        flex-grow: 0;
+        flex-basis: auto;
+        white-space: nowrap;
+      }
+    }
+
+    // 特殊处理带自动填充按钮的描述字段
+    .input-with-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-right: 1rem;
+
+      .input-container {
+        flex: 1;
+        margin-right: 0;
+      }
+    }
+
+    // 删除按钮固定在最右侧，保持一致的尺寸和间距
+    > svg {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-left: auto;
     }
   }
   .more-fields {
@@ -323,6 +437,41 @@ export default {
       svg {
         margin-right: 0.25rem;
         border: none;
+      }
+    }
+  }
+
+  /* Auto-fill button styles */
+  .input-with-btn {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    width: 100%;
+
+    .input-container {
+      flex: 1;
+    }
+
+    .auto-fill-btn {
+      padding: 0.5rem 1rem;
+      background: var(--interactive-editor-color);
+      color: var(--interactive-editor-background);
+      border: 1px solid var(--interactive-editor-color);
+      border-radius: var(--curve-factor);
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.2s ease;
+      height: 2.5rem;
+      min-width: 3rem;
+
+      &:hover {
+        background: var(--interactive-editor-background);
+        color: var(--interactive-editor-color);
+        transform: scale(1.05);
+      }
+
+      &:active {
+        transform: scale(0.95);
       }
     }
   }

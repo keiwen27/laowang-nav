@@ -7,25 +7,28 @@
     <!-- Material Design Icon -->
     <span v-else-if="iconType === 'mdi'" :class=" `mdi ${icon} ${size}`"></span>
     <!-- Simple-Icons -->
-    <svg v-else-if="iconType === 'si' && !broken" :class="`simple-icons ${size}`"
+    <svg v-else-if="iconType === 'si'" :class="`simple-icons ${size}`"
       role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <path :d="getSimpleIcon(icon)" />
     </svg>
     <!-- Standard image asset icon -->
-    <img v-else-if="effectiveIcon" :src="iconPath" @error="imageNotFound"
-      :class="`tile-icon ${size} ${broken ? 'broken' : ''}`"
+    <img v-else-if="iconPath" :src="iconPath"
+      @error="imageNotFound"
+      @load="imageLoaded"
+      :class="`tile-icon ${size}`"
     />
-    <!-- Icon could not load/ broken url -->
-    <BrokenImage v-if="broken" :class="`missing-image ${size}`" />
+    <!-- Removed BrokenImage - we now always fallback to generative icon instead -->
   </div>
 </template>
 
 <script>
-import BrokenImage from '@/assets/interface-icons/broken-icon.svg';
+// BrokenImage removed - now using generative icon fallback
 import ErrorHandler from '@/utils/ErrorHandler';
 import EmojiUnicodeRegex from '@/utils/EmojiUnicodeRegex';
 import emojiLookup from '@/utils/emojis.json';
-import { faviconApi as defaultFaviconApi, faviconApiEndpoints, iconCdns } from '@/utils/defaults';
+import {
+  faviconApi as defaultFaviconApi, faviconApiEndpoints, faviconFallbackChain, iconCdns,
+} from '@/utils/defaults';
 
 const simpleicons = require('simple-icons');
 
@@ -37,9 +40,7 @@ export default {
     size: String, // Either small, medium or large
     label: String, // Item title for generative icons
   },
-  components: {
-    BrokenImage, // Used when the desired image returns a 404
-  },
+  components: {},
   computed: {
     /* Get appConfig from store */
     appConfig() {
@@ -87,31 +88,26 @@ export default {
     },
     /* Return the path to icon asset, depending on icon type */
     getIconPath(img, url) {
-      // Define the fallback chain
-      // Use unavatar first as it supports 404s (avoiding white globes)
-      const FALLBACK_PROVIDERS = ['unavatar', 'google', 'duckduckgo'];
+      // Build complete fallback provider list from the new config
+      const { domestic, international, logo } = faviconFallbackChain;
+      const ALL_FALLBACK_PROVIDERS = [...domestic, ...international, ...logo];
 
-      // Final Fallback: Generative Icon
-      // If we have exhausted all providers, OR if the image type dictated 'generative' explicitly
-      if (this.fallbackStage > FALLBACK_PROVIDERS.length) {
-        return this.getGenerativeIcon(url || this.label);
+      // Final Fallback: Generative Icon (Stage 999)
+      if (this.fallbackStage === 999 || this.fallbackStage > ALL_FALLBACK_PROVIDERS.length) {
+        return this.getGenerativeIcon(url || this.label || 'Web');
       }
 
-      // Intermediate Fallbacks: Cycle through providers
-      // Intermediate Fallbacks: Cycle through providers
+      // Intermediate Fallbacks: Cycle through all providers
       if (this.fallbackStage > 0) {
         const providerIndex = this.fallbackStage - 1;
-        if (providerIndex < FALLBACK_PROVIDERS.length) {
-          const provider = FALLBACK_PROVIDERS[providerIndex];
+        if (providerIndex < ALL_FALLBACK_PROVIDERS.length) {
+          const provider = ALL_FALLBACK_PROVIDERS[providerIndex];
           // Skip if this provider was already the user's default choice (avoid duplicates)
           const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
           if (provider === userDefault) {
-            // We can't safely increment and recurse here inside the render function without risk
-            // So we just rely on the next error trigger to move us along,
-            // OR we pick the next one immediately if possible.
-            // For simplicity/safety, let's just return the current one.
-            // The previous logic had a risk of infinite recursion or side-effects in computed prop.
-            // But actually, getFavicon is cheap. Let's try to just use it.
+            // Skip to next provider by incrementing stage and recursing
+            this.fallbackStage += 1;
+            return this.getIconPath(img, url);
           }
           return this.getFavicon(url, provider);
         }
@@ -123,14 +119,14 @@ export default {
         case 'img': return this.getLocalImagePath(img);
         case 'favicon': return this.getFavicon(url);
         case 'custom-favicon': return this.getCustomFavicon(url, img);
-        case 'generative': return this.getGenerativeIcon(url);
+        case 'generative': return this.getGenerativeIcon(url || this.label);
         case 'mdi': return img; // Material design icons
         case 'simple-icons': return this.getSimpleIcon(img);
         case 'home-lab-icons': return this.getHomeLabIcon(img);
         case 'selfhst-icons': return this.getSelfhstIcon(img); // selfh.st/icons
         case 'svg': return img; // Local SVG icon
         case 'emoji': return img; // Emoji/ unicode
-        default: return '';
+        default: return this.getGenerativeIcon(url || this.label || 'L'); // Fallback for unknown types
       }
     },
     /* Check if a string is in a URL format. Used to identify tile icon source */
@@ -228,16 +224,27 @@ export default {
     },
     /* Generates a local SVG icon based on the URL/Title initials */
     getGenerativeIcon(url) {
-      const host = this.getHostName(url) || this.label || url || 'L';
-      // Get first 1-2 characters
-      const text = host.replace(/[^\w\u4e00-\u9fa5]/g, '').slice(0, 2).toUpperCase() || 'L';
-      const color = this.stringToColor(host);
+      const host = this.getHostName(url) || this.label || url || 'Web';
 
+      // Smart text extraction (supports Chinese and English)
+      const text = this.extractInitials(host);
+
+      // Generate gradient colors
+      const [color1, color2] = this.generateGradientColors(host);
+
+      const uniqueId = this.hashCode(host);
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-          <rect width="100%" height="100%" fill="${color}"/>
-          <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" 
-             font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#fff">
+          <defs>
+            <linearGradient id="grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:${color1};stop-opacity:1" />
+              <stop offset="100%" style="stop-color:${color2};stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <rect width="128" height="128" rx="20" fill="url(#grad-${uniqueId})"/>
+          <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" 
+             font-family="Arial, -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', sans-serif" 
+             font-size="56" font-weight="700" fill="#fff" opacity="0.95">
             ${text}
           </text>
         </svg>
@@ -247,16 +254,47 @@ export default {
       const base64 = btoa(unescape(encodeURIComponent(svg)));
       return `data:image/svg+xml;base64,${base64}`;
     },
-    /* Generate a consistent color from a string */
-    stringToColor(str) {
+    /* Extract initials from string (supports Chinese and English) */
+    extractInitials(str) {
+      // Remove protocol, www, and non-alphanumeric chars (keep Chinese)
+      let cleaned = str.replace(/^(https?:\/\/)?(www\.)?/, '');
+      cleaned = cleaned.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '');
+
+      if (!cleaned) return 'W';
+
+      const firstChar = cleaned.charAt(0).toUpperCase();
+      const isChinese = /[\u4e00-\u9fa5]/.test(firstChar);
+
+      if (isChinese) {
+        // For Chinese, take 1 character
+        return firstChar;
+      } else {
+        // For English, take 1-2 characters
+        const match = cleaned.match(/^([a-zA-Z0-9]{1,2})/);
+        return match ? match[0].toUpperCase() : 'W';
+      }
+    },
+    /* Generate gradient colors based on string hash */
+    generateGradientColors(str) {
+      const hash = this.hashCode(str);
+      const hue = Math.abs(hash % 360);
+
+      // Generate vibrant, modern gradient colors
+      const color1 = `hsl(${hue}, 70%, 55%)`;
+      const color2 = `hsl(${(hue + 40) % 360}, 70%, 45%)`;
+
+      return [color1, color2];
+    },
+    /* Generate hash code from string */
+    hashCode(str) {
       let hash = 0;
       for (let i = 0; i < str.length; i += 1) {
         // eslint-disable-next-line no-bitwise
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        // eslint-disable-next-line no-bitwise
+        hash |= 0;
       }
-      // eslint-disable-next-line no-bitwise
-      const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-      return `#${'00000'.substring(0, 6 - c.length)}${c}`;
+      return hash;
     },
     /* Returns the SVG path content  */
     getSimpleIcon(img) {
@@ -287,36 +325,32 @@ export default {
     },
     /* Called when the path to the image cannot be resolved */
     imageNotFound(errorMsg) {
-      // Logic for multi-stage fallback
-      // Stage 0: Initial (User Config/Default)
-      // Stage 1-3: Fallbacks (Google, Iowen, DuckDuckGo)
-      // Stage 4: Final (Generative)
-      const MAX_STAGES = 5; // Increased safety margin
+      // Build complete fallback provider list
+      const { domestic, international, logo } = faviconFallbackChain;
+      const ALL_FALLBACK_PROVIDERS = [...domestic, ...international, ...logo];
+      const MAX_STAGES = ALL_FALLBACK_PROVIDERS.length + 1;
 
       if (this.fallbackStage < MAX_STAGES) {
         this.fallbackStage += 1;
-        this.broken = false; // Reset broken to trigger re-render with new path
+        this.broken = false; // Never set to true - always try next fallback
 
-        // Optimization: If we hit a provider that duplicates default, skip it immediately
-        const FALLBACK_PROVIDERS = ['unavatar', 'google', 'duckduckgo'];
-        if (this.fallbackStage > 0 && this.fallbackStage <= FALLBACK_PROVIDERS.length) {
-          const provider = FALLBACK_PROVIDERS[this.fallbackStage - 1];
+        // Skip duplicate providers
+        if (this.fallbackStage > 0 && this.fallbackStage <= ALL_FALLBACK_PROVIDERS.length) {
+          const provider = ALL_FALLBACK_PROVIDERS[this.fallbackStage - 1];
           const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
           if (provider === userDefault) {
             this.fallbackStage += 1;
           }
         }
       } else {
-        this.broken = true; // Show BrokenImage component if all fail
-        let outputMessage = '';
-        if (errorMsg && typeof errorMsg === 'string') {
-          outputMessage = errorMsg;
-        } else if (!this.icon) {
-          outputMessage = 'Icon not specified';
-        } else {
-          outputMessage = `The path to '${this.icon}' could not be resolved`;
+        // All fallback providers exhausted - use generative icon
+        this.broken = false; // NEVER show broken image!
+        this.fallbackStage = 999; // Mark as final stage
+
+        // Only log in development mode
+        if (process.env.NODE_ENV === 'development' && errorMsg && typeof errorMsg === 'string') {
+          ErrorHandler(`Icon fallback: ${errorMsg}`);
         }
-        ErrorHandler(outputMessage);
       }
     },
     /* Called when initial icon has resulted in 404. Attempts to find new icon */
@@ -327,6 +361,30 @@ export default {
         return this.getGenerativeIcon(this.url || this.icon || 'default');
       }
       return this.getIconPath(this.effectiveIcon, this.url);
+    },
+    /* Called when image loads successfully - check if it's a generic placeholder */
+    imageLoaded(event) {
+      const img = event.target;
+
+      // Common placeholder sizes from different services:
+      // Google: 16x16, 32x32, 64x64, 80x80, 128x128 gray globe
+      // DuckDuckGo: 32x32, 48x48 gray circle with arrow
+      // Other services: various small ones
+
+      const isSquare = img.naturalWidth === img.naturalHeight;
+      const commonPlaceholderSizes = [16, 32, 48, 64, 80, 128];
+      const isCommonPlaceholder = isSquare && commonPlaceholderSizes.includes(img.naturalWidth);
+
+      // Also catch any very small icons (likely placeholders)
+      const isTinyIcon = img.naturalWidth <= 20 && img.naturalHeight <= 20;
+
+      // If it's likely a generic placeholder, trigger fallback
+      if (isCommonPlaceholder || isTinyIcon) {
+        // Give a tiny delay to prevent visual flicker
+        setTimeout(() => {
+          this.imageNotFound('Generic placeholder detected');
+        }, 50);
+      }
     },
   },
 };
