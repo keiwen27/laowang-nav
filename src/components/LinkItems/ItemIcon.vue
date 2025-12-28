@@ -296,8 +296,15 @@ export default {
       if (this.fallbackStage < MAX_STAGES) {
         this.fallbackStage += 1;
         this.broken = false; // Reset broken to trigger re-render with new path
-        
+
         // Optimization: If we hit a provider that duplicates default, skip it immediately
+        const FALLBACK_PROVIDERS = ['unavatar', 'google', 'duckduckgo'];
+        if (this.fallbackStage > 0 && this.fallbackStage <= FALLBACK_PROVIDERS.length) {
+          const provider = FALLBACK_PROVIDERS[this.fallbackStage - 1];
+          const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
+          if (provider === userDefault) {
+            this.fallbackStage += 1;
+          }
         }
       } else {
         this.broken = true; // Show BrokenImage component if all fail
