@@ -14,7 +14,6 @@
     <!-- Standard image asset icon -->
     <img v-else-if="iconPath" :src="iconPath"
       @error="imageNotFound"
-      @load="imageLoaded"
       :class="`tile-icon ${size}`"
     />
     <!-- Removed BrokenImage - we now always fallback to generative icon instead -->
@@ -27,7 +26,7 @@ import ErrorHandler from '@/utils/ErrorHandler';
 import EmojiUnicodeRegex from '@/utils/EmojiUnicodeRegex';
 import emojiLookup from '@/utils/emojis.json';
 import {
-  faviconApi as defaultFaviconApi, faviconApiEndpoints, faviconFallbackChain, iconCdns,
+  faviconApi as defaultFaviconApi, faviconApiEndpoints, iconCdns,
 } from '@/utils/defaults';
 
 const simpleicons = require('simple-icons');
@@ -46,9 +45,10 @@ export default {
     appConfig() {
       return this.$store.getters.appConfig;
     },
-    /* Effective icon: use 'favicon' as default when icon is empty to trigger auto-discovery */
+    /* 保持原始 icon 值：如果配置了就用配置的，否则为空 */
     effectiveIcon() {
-      return this.icon || 'favicon';
+      // 只有明确配置了 icon 才使用，不再自动添加 'favicon'
+      return this.icon || '';
     },
     /* Determines the type of icon */
     iconType() {
@@ -56,22 +56,19 @@ export default {
     },
     /* Gets the icon path, dependent on icon type */
     iconPath() {
-      if (this.broken) return this.getFallbackIcon();
       return this.getIconPath(this.effectiveIcon, this.url);
     },
   },
   data() {
     return {
-      broken: false, // If true, was unable to resolve icon
-      attemptedFallback: false,
-      fallbackStage: 0, // 0: Initial, 1-3: Providers, 4: Generative
+      fallbackStage: 0, // 0: Initial, 1: 备用API, 2: 生成图标
     };
   },
   methods: {
     /* Determine icon type, e.g. local or remote asset, SVG, favicon, font-awesome, etc */
     determineImageType(img) {
       let imgType = '';
-      if (!img) imgType = 'none';
+      if (!img) imgType = 'auto-fetch'; // 没有配置icon时自动获取
       else if (this.isUrl(img)) imgType = 'url';
       else if (this.isImage(img)) imgType = 'img';
       else if (img.includes('fa-')) imgType = 'font-awesome';
@@ -83,50 +80,53 @@ export default {
       else if (img === 'favicon') imgType = 'favicon';
       else if (img === 'generative') imgType = 'generative';
       else if (this.isEmoji(img).isEmoji) imgType = 'emoji';
-      else imgType = 'none';
+      else imgType = 'auto-fetch'; // 无法识别时也尝试自动获取
       return imgType;
     },
     /* Return the path to icon asset, depending on icon type */
     getIconPath(img, url) {
-      // Build complete fallback provider list from the new config
-      const { domestic, international, logo } = faviconFallbackChain;
-      const ALL_FALLBACK_PROVIDERS = [...domestic, ...international, ...logo];
+      // 简化的 Fallback 策略：最多尝试2次 (默认API + 备用API)，然后生成图标
+      const MAX_FALLBACK = 2;
 
-      // Final Fallback: Generative Icon (Stage 999)
-      if (this.fallbackStage === 999 || this.fallbackStage > ALL_FALLBACK_PROVIDERS.length) {
+      // 最终 Fallback: 生成图标
+      if (this.fallbackStage >= MAX_FALLBACK) {
         return this.getGenerativeIcon(url || this.label || 'Web');
       }
 
-      // Intermediate Fallbacks: Cycle through all providers
-      if (this.fallbackStage > 0) {
-        const providerIndex = this.fallbackStage - 1;
-        if (providerIndex < ALL_FALLBACK_PROVIDERS.length) {
-          const provider = ALL_FALLBACK_PROVIDERS[providerIndex];
-          // Skip if this provider was already the user's default choice (avoid duplicates)
-          const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
-          if (provider === userDefault) {
-            // Skip to next provider by incrementing stage and recursing
-            this.fallbackStage += 1;
-            return this.getIconPath(img, url);
-          }
-          return this.getFavicon(url, provider);
+      // 第一次失败后，尝试备用 API
+      if (this.fallbackStage === 1) {
+        // 使用一个可靠的备用 API (国内优先使用 wuruihong)
+        const backupApi = 'wuruihong';
+        const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
+        // 如果备用和默认相同，直接生成图标
+        if (backupApi === userDefault) {
+          return this.getGenerativeIcon(url || this.label || 'Web');
         }
+        return this.getFavicon(url, backupApi);
       }
 
-      // Initial Stage: Configured Icon or Default API
+      // Initial Stage: 根据 icon 类型处理
       switch (this.determineImageType(img)) {
-        case 'url': return img;
+        case 'url': return img; // 直接使用配置的 URL
         case 'img': return this.getLocalImagePath(img);
         case 'favicon': return this.getFavicon(url);
         case 'custom-favicon': return this.getCustomFavicon(url, img);
         case 'generative': return this.getGenerativeIcon(url || this.label);
-        case 'mdi': return img; // Material design icons
+        case 'mdi': return img;
         case 'simple-icons': return this.getSimpleIcon(img);
         case 'home-lab-icons': return this.getHomeLabIcon(img);
-        case 'selfhst-icons': return this.getSelfhstIcon(img); // selfh.st/icons
-        case 'svg': return img; // Local SVG icon
-        case 'emoji': return img; // Emoji/ unicode
-        default: return this.getGenerativeIcon(url || this.label || 'L'); // Fallback for unknown types
+        case 'selfhst-icons': return this.getSelfhstIcon(img);
+        case 'svg': return img;
+        case 'emoji': return img;
+        case 'auto-fetch':
+          // 没有配置 icon 时，尝试用 API 获取 favicon
+          if (url && url.includes('http')) {
+            return this.getFavicon(url);
+          }
+          // 无有效 URL 则直接生成
+          return this.getGenerativeIcon(this.label || 'Web');
+        default:
+          return this.getGenerativeIcon(url || this.label || 'L');
       }
     },
     /* Check if a string is in a URL format. Used to identify tile icon source */
@@ -323,68 +323,15 @@ export default {
         return url;
       }
     },
-    /* Called when the path to the image cannot be resolved */
-    imageNotFound(errorMsg) {
-      // Build complete fallback provider list
-      const { domestic, international, logo } = faviconFallbackChain;
-      const ALL_FALLBACK_PROVIDERS = [...domestic, ...international, ...logo];
-      const MAX_STAGES = ALL_FALLBACK_PROVIDERS.length + 1;
-
-      if (this.fallbackStage < MAX_STAGES) {
+    /* Called when the path to the image cannot be resolved - 简化的 fallback 策略 */
+    imageNotFound() {
+      // 简化：只尝试一次备用 API，然后直接生成图标
+      // 最多 2 阶段：0 → 1 (备用API) → 2 (生成图标)
+      if (this.fallbackStage < 2) {
         this.fallbackStage += 1;
-        this.broken = false; // Never set to true - always try next fallback
-
-        // Skip duplicate providers
-        if (this.fallbackStage > 0 && this.fallbackStage <= ALL_FALLBACK_PROVIDERS.length) {
-          const provider = ALL_FALLBACK_PROVIDERS[this.fallbackStage - 1];
-          const userDefault = this.appConfig.faviconApi || defaultFaviconApi;
-          if (provider === userDefault) {
-            this.fallbackStage += 1;
-          }
-        }
-      } else {
-        // All fallback providers exhausted - use generative icon
-        this.broken = false; // NEVER show broken image!
-        this.fallbackStage = 999; // Mark as final stage
-
-        // Only log in development mode
-        if (process.env.NODE_ENV === 'development' && errorMsg && typeof errorMsg === 'string') {
-          ErrorHandler(`Icon fallback: ${errorMsg}`);
-        }
+        // Vue 会自动重新计算 iconPath，触发新的图片请求
       }
-    },
-    /* Called when initial icon has resulted in 404. Attempts to find new icon */
-    getFallbackIcon() {
-      // This is now mostly handled by getIconPath via fallbackStage
-      // But keeping this logic for safety if called directly
-      if (this.attemptedFallback) {
-        return this.getGenerativeIcon(this.url || this.icon || 'default');
-      }
-      return this.getIconPath(this.effectiveIcon, this.url);
-    },
-    /* Called when image loads successfully - check if it's a generic placeholder */
-    imageLoaded(event) {
-      const img = event.target;
-
-      // Common placeholder sizes from different services:
-      // Google: 16x16, 32x32, 64x64, 80x80, 128x128 gray globe
-      // DuckDuckGo: 32x32, 48x48 gray circle with arrow
-      // Other services: various small ones
-
-      const isSquare = img.naturalWidth === img.naturalHeight;
-      const commonPlaceholderSizes = [16, 32, 48, 64, 80, 128];
-      const isCommonPlaceholder = isSquare && commonPlaceholderSizes.includes(img.naturalWidth);
-
-      // Also catch any very small icons (likely placeholders)
-      const isTinyIcon = img.naturalWidth <= 20 && img.naturalHeight <= 20;
-
-      // If it's likely a generic placeholder, trigger fallback
-      if (isCommonPlaceholder || isTinyIcon) {
-        // Give a tiny delay to prevent visual flicker
-        setTimeout(() => {
-          this.imageNotFound('Generic placeholder detected');
-        }, 50);
-      }
+      // 阶段 2 会由 getIconPath 处理，直接返回生成图标
     },
   },
 };
