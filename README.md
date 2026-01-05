@@ -103,18 +103,110 @@
 | **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/tony-wang1990/laowang-nav) |
 
 ### 方式二：Docker 部署
+### 方式二：Docker 部署
 
-> 💡 **多架构支持**：Docker 镜像同时支持 **AMD64** (Intel/AMD 服务器) 和 **ARM64** (树莓派/Oracle ARM 等)，自动适配您的服务器架构！
+>  **多架构支持**：Docker 镜像同时支持 **AMD64** (Intel/AMD 服务器) 和 **ARM64** (树莓派/Oracle ARM 等)，自动适配您的服务器架构！
 
+####  一键安装脚本（强烈推荐）
+
+**Linux / macOS:**
 ```bash
+curl -fsSL https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/scripts/install.sh | bash
+```
+
+**Windows PowerShell:**
+```powershell
+irm https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/scripts/install.ps1 | iex
+```
+
+####  手动部署（完整步骤）
+
+>  **重要**: 首次部署必须先下载配置文件，否则会出现 404 错误！
+
+**首次部署**:
+```bash
+# 1. 创建数据目录
+mkdir -p ~/laowang-nav/user-data ~/laowang-nav/public/item-icons
+cd ~/laowang-nav
+
+# 2. 下载默认配置文件（必需！）
+curl -o ./user-data/conf.yml \
+  https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/user-data/conf.yml
+
+# 3. 拉取最新镜像
+docker pull ghcr.io/tony-wang1990/laowang-nav:latest
+
+# 4. 启动容器（带数据持久化）
 docker run -d \
-  -p 8080:8080 \
   --name laowang-nav \
-  --restart always \
+  -p 8080:8080 \
+  -v $(pwd)/user-data:/app/user-data \
+  -v $(pwd)/public/item-icons:/app/public/item-icons \
+  -e NODE_ENV=production \
+  --restart unless-stopped \
   ghcr.io/tony-wang1990/laowang-nav:latest
 ```
 
+**更新到最新版本**:
+```bash
+# 1. 拉取最新镜像（重要！）
+docker pull ghcr.io/tony-wang1990/laowang-nav:latest
+
+# 2. 停止并删除旧容器
+docker stop laowang-nav
+docker rm laowang-nav
+
+# 3. 使用最新镜像重新启动
+cd ~/laowang-nav
+docker run -d \
+  --name laowang-nav \
+  -p 8080:8080 \
+  -v $(pwd)/user-data:/app/user-data \
+  -v $(pwd)/public/item-icons:/app/public/item-icons \
+  -e NODE_ENV=production \
+  --restart unless-stopped \
+  ghcr.io/tony-wang1990/laowang-nav:latest
+```
+
+或使用一键更新脚本：
+```bash
+curl -fsSL https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/scripts/update.sh | bash
+```
+
+####  Docker Compose 部署
+
+```bash
+# 下载 docker-compose.yml
+curl -O https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/docker-compose.yml
+
+# 启动服务（包含自动更新）
+docker compose up -d
+```
+
 访问 `http://localhost:8080`
+
+####  常见问题
+
+**Q: 出现 "Configuration Load Error" 404 错误？**
+```bash
+# 下载默认配置文件
+curl -o ~/laowang-nav/user-data/conf.yml \
+  https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/user-data/conf.yml
+
+# 重启容器
+docker restart laowang-nav
+```
+
+**Q: 如何备份配置？**
+```bash
+# 配置文件位置
+cp ~/laowang-nav/user-data/conf.yml ~/laowang-nav/user-data/conf.yml.backup
+```
+
+**Q: 更新后配置丢失？**
+
+确保使用了 `-v` 卷挂载，详见上方"首次部署"步骤。
+
 
 ### 方式三：本地开发
 
