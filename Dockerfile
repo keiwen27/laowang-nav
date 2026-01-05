@@ -1,4 +1,4 @@
-FROM node:18.19.1-alpine AS build_image
+﻿FROM node:18.19.1-alpine AS build_image
 
 # Set the platform to build image for
 ARG TARGETPLATFORM
@@ -27,6 +27,9 @@ RUN npm config set registry https://registry.npmmirror.com \
 
 # Copy over all project files and folders to the working directory
 COPY . ./
+
+# Backup default config for auto-initialization
+RUN cp -r user-data user-data-example 2>/dev/null || true
 
 # Build initial app for production
 RUN npm run build -- --mode production
