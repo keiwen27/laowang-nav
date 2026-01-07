@@ -312,9 +312,7 @@ export default {
 .web-search-container {
   margin: 1rem auto 0.5rem;
   @include phone {
-    --content-max-width: 100%;
-    /* padding-right: 3rem;  Removed to fix centering issue */
-    margin-top: 0.5rem;
+    --content-max-width: 100%;    margin-top: 0.5rem;
   }
   @include tablet { --content-max-width: 98%; }
   @include laptop { --content-max-width: 90%; }
