@@ -29,13 +29,18 @@ jobs:
           VERSION="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       
+      - name: Zip Artifacts
+        run: |
+          cd dist
+          zip -r ../release.zip .
+          cd ..
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
           draft: false
-          files: |
-            dist/**/*
+          files: release.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
