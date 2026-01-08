@@ -7,10 +7,10 @@
     <!-- Material Design Icon -->
     <span v-else-if="iconType === 'mdi'" :class=" `mdi ${icon} ${size}`"></span>
     <!-- Simple-Icons -->
-    <svg v-else-if="iconType === 'si'" :class="`simple-icons ${size}`"
-      role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path :d="getSimpleIcon(icon)" />
-    </svg>
+    <img v-else-if="iconType === 'si'" :src="iconPath"
+      :class="`simple-icons ${size}`"
+      @error="imageNotFound"
+    />
     <!-- Standard image asset icon -->
     <img v-else-if="iconPath" :src="iconPath"
       @error="imageNotFound"
@@ -29,7 +29,7 @@ import {
   faviconApi as defaultFaviconApi, faviconApiEndpoints, iconCdns,
 } from '@/utils/defaults';
 
-const simpleicons = require('simple-icons');
+
 
 export default {
   name: 'Icon',
@@ -296,15 +296,10 @@ export default {
       }
       return hash;
     },
-    /* Returns the SVG path content  */
+    /* Returns the CDN URL for the icon */
     getSimpleIcon(img) {
-      const imageName = img.charAt(3).toUpperCase() + img.slice(4);
-      const icon = simpleicons[`si${imageName}`];
-      if (!icon) {
-        this.imageNotFound(`No icon was found for '${imageName}' in Simple Icons`);
-        return null;
-      }
-      return icon.path;
+      const imageName = img.slice(3); // Remove 'si-' prefix
+      return `https://cdn.simpleicons.org/${imageName}`;
     },
     getSelfhstIcon(img, cdn) {
       const imageName = img.slice(3).toLocaleLowerCase();
