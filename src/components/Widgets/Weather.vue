@@ -176,9 +176,13 @@ export default {
           const code = data.current.weather_code;
           this.description = this.mapWmoCode(code, isCN);
           this.icon = this.mapWmoIcon(code);
-          // Open-Meteo 不返回城市名，需要用之前的 geo 数据，这里均显示 Local 或结合 IP 数据
-          // 如果是 CN 模式但走到这里说明国内接口挂了，用 lat/lon 反查太麻烦，直接显示 Generic
-          this.location = isCN ? '本地气象' : 'Local Weather';
+          // Open-Meteo 不返回城市名，显示经纬度坐标更有用
+          if (isCN) {
+            // 中国用户显示经纬度，比"本地气象"更有信息量
+            this.location = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`;
+          } else {
+            this.location = 'Local Weather';
+          }
 
           this.weatherDetails = [[
             { label: isCN ? '湿度' : 'Humidity', value: `${data.current.relative_humidity_2m}%` },
@@ -306,11 +310,24 @@ export default {
     /* 过滤不合理的地名 */
     sanitizeLocation(location) {
       if (!location) return '';
-      const invalidNames = ['Coffee', 'Unknown', 'undefined', 'null'];
-      if (invalidNames.some(n => location.toLowerCase().includes(n.toLowerCase()))) {
+
+      // 1. 过滤 emoji 占位符 (:coffee:, :unknown: 等)
+      if (typeof location === 'string'
+          && location.startsWith(':')
+          && location.endsWith(':')) {
         return '';
       }
-      return location;
+
+      // 2. 过滤明确的无效值（使用完全匹配，避免误伤真实地名）
+      const invalidNames = ['Unknown', 'undefined', 'null', 'N/A', 'Invalid'];
+      const normalizedLocation = location.toLowerCase().trim();
+
+      if (invalidNames.some(n => normalizedLocation === n.toLowerCase())) {
+        return '';
+      }
+
+      // 3. 返回清理后的地名
+      return location.trim();
     },
 
     toggleDetails() { this.showDetails = !this.showDetails; },

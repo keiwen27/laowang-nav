@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图标Fallback测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    .test-case {
+      margin: 20px 0;
+      padding: 15px;
+      background: #16213e;
+      border-radius: 8px;
+      border-left: 4px solid #0f3460;
+    }
+    .icon-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .icon-display img {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+    }
+    .status {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .success { background: #10b981; color: white; }
+    .error { background: #ef4444; color: white; }
+    .loading { background: #f59e0b; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🧪 图标Fallback机制测试</h1>
+  
+  <div class="test-case">
+    <h3>测试1: 正常的favicon（应该成功）</h3>
+    <div class="icon-display" id="test1">
+      <img src="https://www.google.com/favicon.ico" alt="Google">
+      <span class="status loading">测试中...</span>
+    </div>
+  </div>
+
+  <div class="test-case">
+    <h3>测试2: 不存在的URL（应该fallback到生成图标）</h3>
+    <div class="icon-display" id="test2">
+      <img src="https://invalid-url-that-does-not-exist-12345.com/favicon.ico" alt="Invalid" id="test2-img">
+      <span class="status loading">测试中...</span>
+    </div>
+  </div>
+
+  <div class="test-case">
+    <h3>测试3: 自建网站模拟（ghproxy）</h3>
+    <div class="icon-display" id="test3">
+      <img src="https://ghproxy.local/favicon.ico" alt="ghproxy" id="test3-img">
+      <span class="status loading">测试中...</span>
+    </div>
+  </div>
+
+  <div class="test-case">
+    <h3>测试4: 生成图标示例</h3>
+    <div class="icon-display" id="test4">
+      <!-- 这是我们的生成图标应该返回的格式 -->
+      <img id="test4-img" alt="Generated">
+      <span class="status loading">生成中...</span>
+    </div>
+  </div>
+
+  <script>
+    // 模拟ItemIcon.vue的getGenerativeIcon方法
+    function generateIcon(text, url = '') {
+      const hashCode = (str) => {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          hash = ((hash << 5) - hash) + str.charCodeAt(i);
+          hash |= 0;
+        }
+        return hash;
+      };
+
+      const hash = hashCode(url || text);
+      const hue = Math.abs(hash % 360);
+      const color1 = `hsl(${hue}, 70%, 55%)`;
+      const color2 = `hsl(${(hue + 40) % 360}, 70%, 45%)`;
+      const uniqueId = Math.abs(hash);
+
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+          <defs>
+            <linearGradient id="grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:${color1};stop-opacity:1" />
+              <stop offset="100%" style="stop-color:${color2};stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <rect width="128" height="128" rx="20" fill="url(#grad-${uniqueId})"/>
+          <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" 
+             font-family="Arial, sans-serif" 
+             font-size="56" font-weight="700" fill="#fff" opacity="0.95">
+            ${text}
+          </text>
+        </svg>
+      `.trim();
+
+      const base64 = btoa(unescape(encodeURIComponent(svg)));
+      return `data:image/svg+xml;base64,${base64}`;
+    }
+
+    // 模拟Vue的响应式fallback
+    class IconFallback {
+      constructor(imgElement, statusElement, url) {
+        this.img = imgElement;
+        this.status = statusElement;
+        this.url = url;
+        this.fallbackStage = 0;
+        this.setupListeners();
+      }
+
+      setupListeners() {
+        this.img.addEventListener('load', () => {
+          this.status.textContent = '✅ 加载成功';
+          this.status.className = 'status success';
+        });
+
+        this.img.addEventListener('error', () => {
+          this.handleError();
+        });
+      }
+
+      handleError() {
+        console.log(`Fallback stage ${this.fallbackStage} failed for ${this.url}`);
+        
+        if (this.fallbackStage < 2) {
+          this.fallbackStage += 1;
+          
+          if (this.fallbackStage === 1) {
+            // 尝试备用API
+            this.status.textContent = '⚠️ 尝试备用API...';
+            this.status.className = 'status loading';
+            // 模拟备用API（也会失败）
+            setTimeout(() => {
+              this.img.src = `https://icon.wuruihong.com/icon?url=${encodeURIComponent(this.url)}`;
+            }, 100);
+          } else if (this.fallbackStage === 2) {
+            // 生成图标
+            this.status.textContent = '🎨 使用生成图标';
+            this.status.className = 'status success';
+            const hostname = new URL(this.url).hostname || this.url;
+            const initial = hostname.charAt(0).toUpperCase();
+            this.img.src = generateIcon(initial, this.url);
+          }
+        }
+      }
+
+      start(initialSrc) {
+        this.img.src = initialSrc;
+      }
+    }
+
+    // 运行测试
+    window.addEventListener('DOMContentLoaded', () => {
+      // Test 1: 正常favicon（应该直接成功）
+      const test1Img = document.querySelector('#test1 img');
+      const test1Status = document.querySelector('#test1 .status');
+      test1Img.addEventListener('load', () => {
+        test1Status.textContent = '✅ 加载成功';
+        test1Status.className = 'status success';
+      });
+      test1Img.addEventListener('error', () => {
+        test1Status.textContent = '❌ 加载失败';
+        test1Status.className = 'status error';
+      });
+
+      // Test 2: 不存在的URL（测试fallback）
+      const test2 = new IconFallback(
+        document.getElementById('test2-img'),
+        document.querySelector('#test2 .status'),
+        'https://invalid-url-that-does-not-exist-12345.com'
+      );
+      // 已经设置了src，等待error触发
+
+      // Test 3: 自建网站
+      const test3 = new IconFallback(
+        document.getElementById('test3-img'),
+        document.querySelector('#test3 .status'),
+        'https://ghproxy.local'
+      );
+
+      // Test 4: 直接生成图标
+      const test4Img = document.getElementById('test4-img');
+      const test4Status = document.querySelector('#test4 .status');
+      test4Img.src = generateIcon('GP', 'ghproxy');
+      test4Img.addEventListener('load', () => {
+        test4Status.textContent = '✅ 生成成功';
+        test4Status.className = 'status success';
+      });
+    });
+  </script>
+</body>
+</html>
