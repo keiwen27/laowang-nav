@@ -93,7 +93,7 @@ import Select from '@/components/FormElements/Select';
 import StoreKeys from '@/utils/StoreMutations';
 import DashySchema from '@/utils/ConfigSchema';
 import { modalNames } from '@/utils/defaults';
-import { DescriptionGenerator } from '@/utils/descriptionGenerator';
+import DescriptionGenerator from '@/utils/descriptionGenerator';
 
 export default {
   name: 'EditItem',

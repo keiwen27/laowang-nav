@@ -3,7 +3,7 @@ import {
   keywordPatterns,
 } from './websiteDatabase';
 
-export class DescriptionGenerator {
+class DescriptionGenerator {
   static generateDescription(url, title = '') {
     try {
       const hostname = new URL(url).hostname.replace(/^www\./, '');
@@ -34,7 +34,8 @@ export class DescriptionGenerator {
     }
 
     const entries = Object.entries(websiteDatabase);
-    for (const [domain, desc] of entries) {
+    for (let i = 0; i < entries.length; i += 1) {
+      const [domain, desc] = entries[i];
       if (hostname.includes(domain) || domain.includes(hostname)) {
         return desc;
       }
@@ -45,7 +46,8 @@ export class DescriptionGenerator {
   static matchKeywords(hostname, title) {
     const searchText = `${hostname} ${title}`.toLowerCase();
 
-    for (const { pattern, description } of keywordPatterns) {
+    for (let i = 0; i < keywordPatterns.length; i += 1) {
+      const { pattern, description } = keywordPatterns[i];
       if (pattern.test(searchText)) return description;
     }
     return null;
@@ -57,3 +59,5 @@ export class DescriptionGenerator {
     return main.charAt(0).toUpperCase() + main.slice(1);
   }
 }
+
+export default DescriptionGenerator;

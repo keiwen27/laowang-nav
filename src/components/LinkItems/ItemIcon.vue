@@ -29,8 +29,6 @@ import {
   faviconApi as defaultFaviconApi, faviconApiEndpoints, iconCdns,
 } from '@/utils/defaults';
 
-
-
 export default {
   name: 'Icon',
   props: {
@@ -56,7 +54,9 @@ export default {
     },
     /* Gets the icon path, dependent on icon type */
     iconPath() {
-      return this.getIconPath(this.effectiveIcon, this.url);
+      // 显式声明依赖 fallbackStage，确保 Vue 追踪变化
+      const stage = this.fallbackStage;
+      return this.getIconPath(this.effectiveIcon, this.url, stage);
     },
   },
   data() {
@@ -84,17 +84,17 @@ export default {
       return imgType;
     },
     /* Return the path to icon asset, depending on icon type */
-    getIconPath(img, url) {
+    getIconPath(img, url, fallbackStage = this.fallbackStage) {
       // 简化的 Fallback 策略：最多尝试2次 (默认API + 备用API)，然后生成图标
       const MAX_FALLBACK = 2;
 
       // 最终 Fallback: 生成图标
-      if (this.fallbackStage >= MAX_FALLBACK) {
+      if (fallbackStage >= MAX_FALLBACK) {
         return this.getGenerativeIcon(url || this.label || 'Web');
       }
 
       // 第一次失败后，尝试备用 API
-      if (this.fallbackStage === 1) {
+      if (fallbackStage === 1) {
         // 使用一个可靠的备用 API (国内优先使用 wuruihong)
         const backupApi = 'wuruihong';
         const userDefault = this.appConfig.faviconApi || defaultFaviconApi;

@@ -314,7 +314,6 @@ export default {
     },
 
     toggleDetails() { this.showDetails = !this.showDetails; },
-    checkProps() { /* Deprecated strict checks, but we keep structure */ },
   },
 };
 </script>

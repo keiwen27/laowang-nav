@@ -68,9 +68,10 @@ const ThemingMixin = {
       this.updateTheme(this.selectedTheme); // Apply theme to UI
     },
     /**
-         * Gets any custom styles the user has applied, wither from local storage, or from the config
-         * @returns {object} An array of objects, one for each theme, containing kvps for variables
-         */
+     * Gets any custom styles the user has applied,
+     * wither from local storage, or from the config
+     * @returns {object} An array of objects, one for each theme, containing kvps for variables
+     */
     getCustomColors() {
       const localColors = JSON.parse(localStorage[localStorageKeys.CUSTOM_COLORS] || '{}');
       const configColors = this.appConfig.customColors || {};

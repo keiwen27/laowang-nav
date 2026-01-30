@@ -70,7 +70,11 @@ export const initHeaderAuth = () => {
   return headerAuth.login();
 };
 
-// TODO: Find where this is implemented
+/**
+ * Get the initialized HeaderAuth instance.
+ * This function is exported for external use but is not currently called in the codebase.
+ * @returns {HeaderAuth} The HeaderAuth instance
+ */
 export const getHeaderAuth = () => {
   if (!headerAuth) {
     ErrorHandler("HeaderAuth not initialized, can't get instance of class");

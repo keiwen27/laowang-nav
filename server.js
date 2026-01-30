@@ -1,4 +1,4 @@
-﻿/**
+/**
  * This is the main entry point for the application, a simple server that
  * runs some checks, and then serves up the app from the ./dist directory
  * Also imports some routes for status checks/ ping and config saving
@@ -25,7 +25,6 @@ const history = require('connect-history-api-fallback');
 // Disabled to speed up container startup - update checks can be slow in production
 // require('./services/update-checker'); // Checks for updates
 
-
 /**
  * Initialize configuration file if it doesn't exist
  * This prevents 404 errors when user-data directory is empty (e.g., when mounted as volume)
@@ -33,53 +32,59 @@ const history = require('connect-history-api-fallback');
 function initializeConfigIfNeeded() {
   const userDataDir = path.join(__dirname, process.env.USER_DATA_DIR || 'user-data');
   const userConfPath = path.join(userDataDir, 'conf.yml');
-  
+
   // Check if conf.yml exists in user-data directory
   if (!fs.existsSync(userConfPath)) {
     console.log('\x1b[33m  Configuration file not found, initializing with default...\x1b[0m');
-    
+
     // Ensure user-data directory exists
     if (!fs.existsSync(userDataDir)) {
       fs.mkdirSync(userDataDir, { recursive: true });
     }
-    
+
     // Try multiple possible sources for default config
     const possibleSources = [
-      path.join(__dirname, 'user-data-example', 'conf.yml'),    // Build-time copy
-      path.join(__dirname, 'data', 'default-conf.yml'),          // Alternative location  
-      path.join(__dirname, 'public', 'conf.yml'),                // Fallback
+      path.join(__dirname, 'user-data-example', 'conf.yml'), // Build-time copy
+      path.join(__dirname, 'data', 'default-conf.yml'), // Alternative location
+      path.join(__dirname, 'public', 'conf.yml'), // Fallback
     ];
-    
+
     let configCopied = false;
-    for (const sourcePath of possibleSources) {
+    for (let i = 0; i < possibleSources.length; i += 1) {
+      const sourcePath = possibleSources[i];
       if (fs.existsSync(sourcePath)) {
         try {
           fs.copyFileSync(sourcePath, userConfPath);
-          console.log(`\x1b[32m Default configuration initialized from ${path.basename(path.dirname(sourcePath))}\x1b[0m`);
+          const sourceDir = path.basename(path.dirname(sourcePath));
+          console.log(`\x1b[32m Default configuration initialized from ${sourceDir}\x1b[0m`);
           configCopied = true;
           break;
         } catch (err) {
-          console.warn(`Failed to copy from ${sourcePath}:`, err.message);
+          // Continue to next source if copy fails
         }
       }
     }
-    
+
     if (!configCopied) {
-      console.error('\x1b[31m Failed to initialize configuration file. Please ensure default config exists.\x1b[0m');
-      console.error('   You can download it from: https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/user-data/conf.yml');
+      console.error(
+        '\x1b[31m Failed to initialize configuration file. Please ensure default config exists.\x1b[0m',
+      );
+      const downloadUrl = 'https://raw.githubusercontent.com/tony-wang1990/laowang-nav/master/user-data/conf.yml';
+      console.error(`   You can download it from: ${downloadUrl}`);
     }
   }
 }
-
 
 // Initialize config if needed before validation
 initializeConfigIfNeeded();
 
 let config = {}; // setup the config
-config = require('./services/config-validator'); // Include and kicks off the config file validation script
+// Include and kicks off the config file validation script
+config = require('./services/config-validator');
 
 /* Include route handlers for API endpoints */
-const statusCheck = require('./services/status-check'); // Used by the status check feature, uses GET
+// Used by the status check feature, uses GET
+const statusCheck = require('./services/status-check');
 const saveConfig = require('./services/save-config'); // Saves users new conf.yml to file-system
 const rebuild = require('./services/rebuild-app'); // A script to programmatically trigger a build
 const systemInfo = require('./services/system-info'); // Basic system info, for resource widget

@@ -31,9 +31,20 @@ export default {
   },
   computed: {
     stories() {
-      // This can be `beststories`, `topstories` or newstories
-      // TODO: display error message if another string not matching the keywords was insert
-      return this.options.stories || 'topstories';
+      // Valid story types supported by Hacker News API
+      const validStories = ['beststories', 'topstories', 'newstories'];
+      const userStory = this.options.stories || 'topstories';
+
+      // Validate user input
+      if (!validStories.includes(userStory)) {
+        console.warn(
+          `Invalid Hacker News story type: "${userStory}". `
+          + `Valid options are: ${validStories.join(', ')}. Using 'topstories' instead.`,
+        );
+        return 'topstories';
+      }
+
+      return userStory;
     },
     limit() {
       return this.options.limit || 10;

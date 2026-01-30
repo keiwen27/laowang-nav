@@ -58,7 +58,7 @@ export const restore = (backupId, password) => {
   return new Promise((resolve, reject) => {
     axios.get(url).then((response) => {
       if (!response.data || response.data.errorMsg) {
-        reject(response.data.errorMsg || 'Error');
+        reject(new Error(response.data.errorMsg || 'Error'));
       } else {
         const decryptedData = decryptData(response.data.userData.userData, password);
         try { resolve(JSON.parse(decryptedData)); } catch (e) { reject(e); }
