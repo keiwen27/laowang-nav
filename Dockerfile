@@ -1,4 +1,4 @@
-﻿FROM node:18.19.1-alpine AS build_image
+FROM node:18.19.1-alpine AS build_image
 
 # Set the platform to build image for
 ARG TARGETPLATFORM
@@ -22,8 +22,14 @@ COPY package.json package-lock.json ./
 RUN npm config set registry https://registry.npmmirror.com \
   && npm config set fetch-retries 5 \
   && npm config set fetch-retry-mintimeout 20000 \
-  && npm config set fetch-retry-maxtimeout 120000 \
-  && npm ci --ignore-scripts --no-audit --no-fund
+  && npm config set fetch-retry-maxtimeout 300000 \
+  && npm config set fetch-timeout 600000 \
+  && npm config set maxsockets 5 \
+  # Retry up to 3 times for slow QEMU arm64 network
+  && for i in 1 2 3; do \
+       npm ci --ignore-scripts --no-audit --no-fund && break || \
+       (echo "npm ci attempt $i failed, retrying..." && sleep 10); \
+     done
 
 # Copy over all project files and folders to the working directory
 COPY . ./
